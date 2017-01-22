@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Dreemcare</title>   
+    </head>
+    <body>
+    <!-- Title -->
+    <h1> Dreemcare </h1>
+    <div>
+        <ul class="nav nav-tabs">
+            <li class="{{ active_nav_tab.0 }}">
+                <a href="/edf_manager/">Manage EDF Files</a>
+            </li>
+            <li class="{{ active_nav_tab.1 }}">
+                <a href="/predictions/">Get Predictions</a>
+            </li>
+        </ul>
+    </div>
+    <!-- List of uploaded documents -->
+    <br><br>
+    <h2>Your files</h2>
+    {% if documents %}
+        <ul>
+        {% for document in documents %}
+            <li><a href="{{ document.docfile.url }}">{{ document.docfile.name }}</a></li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No documents.</p>
+    {% endif %}
+    <br><br>
+    <h2>Upload a new file</h2>
+        <!-- Upload form. Note enctype attribute! -->
+        <form action="{% url 'edf_manager' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <p>{{ form.non_field_errors }}</p>
+            <p>{{ form.docfile.label_tag }} {{ form.docfile.help_text }}</p>
+            <p>
+                {{ form.docfile.errors }}
+                {{ form.docfile }}
+            </p>
+            <p><input type="submit" value="Upload" /></p>
+        </form>
+    </body>
+</html>

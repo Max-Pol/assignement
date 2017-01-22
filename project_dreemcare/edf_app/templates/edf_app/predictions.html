@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Dreemcare</title>   
+    </head>
+    <body>
+    <!-- Title -->
+    <h1> Dreemcare </h1>
+    <div>
+        <ul class="nav nav-tabs">
+            <li class="{{ active_nav_tab.0 }}">
+                <a href="/edf_manager/">Manage EDF Files</a>
+            </li>
+            <li class="{{ active_nav_tab.1 }}">
+                <a href="/predictions/">Get Predictions</a>
+            </li>
+        </ul>
+    </div>
+    <!-- List of uploaded documents -->
+    <br><br>
+    <h2>Your files predictions</h2>
+     <div class="dataTable_wrapper">
+        <table border=1 class="table table-striped table-bordered table-hover" id="dataTables-protocols">
+            <thead>
+              <tr>
+                <th>
+                    Files
+                </th>
+                <th >
+                    TrainScore
+                </th>
+                <th >
+                    TestScore
+                </th>
+            </thead>
+            <tbody>
+            {% if documents_data %}
+                {% for document in documents_data %}
+                    <tr>
+                        <td>
+                            <a href="{{ document.0.docfile.url }}">{{ document.0.docfile.name }}</a>
+                        </td>
+                        <td>
+                            RMSE {{ document.1.0|floatformat:3 }}
+                        </td>
+                        <td>
+                            RMSE {{ document.1.1|floatformat:3 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan='3'>No documents.</td>
+                    </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </body>
+</html>
