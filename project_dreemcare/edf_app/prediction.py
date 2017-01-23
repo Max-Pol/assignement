@@ -9,6 +9,15 @@ from project_dreemcare.settings import PROJECT_ROOT
 from edf_app.models import Document, Prediction
 from edf_app.edf_reader import *
 
+'''
+We need to use global variable here because otherwise
+the second call on load module will make tensorflow crash
+and our predictions won't be computed. I couldn't find any
+related issue on Github, but it seems to be a bug in tensorflow.
+'''
+
+KERAS_MODEL = None
+
 
 def compute_rmse(EEG_data):
     '''
@@ -16,6 +25,7 @@ def compute_rmse(EEG_data):
     evaluating train and test performance by computing
     the Root Mean Square Error.
     '''
+    global KERAS_MODEL
 
     # load the dataset
     dataset = np.array(EEG_data).astype('float32')
@@ -40,16 +50,17 @@ def compute_rmse(EEG_data):
 
     # load model
     path = PROJECT_ROOT + '/media/model/lstm_lookback' + str(look_back) + '.h5'
-    try:
-        model = load_model(path)
-    except:
-        msg = 'Error loading predictor in ' + path
-        logging.warning(msg)
-        raise FileNotFoundError(msg)
+    if KERAS_MODEL is None:
+        try:
+            KERAS_MODEL = load_model(path)
+        except Exception as e:
+            msg = 'Error loading predictor in ' + path + ': ' + str(e)
+            logging.warning(msg)
+            raise FileNotFoundError(msg)
 
     # make predictions
-    trainPredict = model.predict(trainX)
-    testPredict = model.predict(testX)
+    trainPredict = KERAS_MODEL.predict(trainX)
+    testPredict = KERAS_MODEL.predict(testX)
 
     # invert predictions
     trainPredict = scaler.inverse_transform(trainPredict)

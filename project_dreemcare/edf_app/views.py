@@ -39,8 +39,8 @@ def edf_manager(request):
                                             rmse_test=rmse_test)
                 new_prediction.document = newdoc
                 new_prediction.save()
-            except:
-                logging.warning('Predictions failed')
+            except Exception as e:
+                logging.warning('Predictions failed: ' + str(e))
 
             # Redirect to the document list after POST
             return HttpResponseRedirect(reverse('edf_manager'))
