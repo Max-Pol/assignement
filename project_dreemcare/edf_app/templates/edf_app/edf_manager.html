@@ -1,46 +1,50 @@
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <title>Dreemcare</title>   
-    </head>
-    <body>
-    <!-- Title -->
-    <h1> Dreemcare </h1>
-    <div>
-        <ul class="nav nav-tabs">
-            <li class="{{ active_nav_tab.0 }}">
-                <a href="/edf_manager/">Manage EDF Files</a>
-            </li>
-            <li class="{{ active_nav_tab.1 }}">
-                <a href="/predictions/">Get Predictions</a>
-            </li>
-        </ul>
-    </div>
-    <!-- List of uploaded documents -->
-    <br><br>
+{% extends "base.html" %}
+
+{% block content %}
+    
     <h2>Your files</h2>
+   
     {% if documents %}
-        <ul>
-        {% for document in documents %}
-            <li><a href="{{ document.docfile.url }}">{{ document.docfile.name }}</a></li>
-        {% endfor %}
-        </ul>
+        <div class="dataTable_wrapper">
+            <table border=1 class="table table-striped table-bordered table-hover" id="dataTables-protocols">
+                <thead>
+                  <tr>
+                    <th>
+                        id
+                    </th>
+                    <th>
+                        Files
+                    </th>
+                </thead>
+                <tbody>
+                    {% for document in documents %}
+                        <tr>
+                            <td>
+                                {{ document.pk }}
+                            </td>
+                            <td>
+                                <a href="{{ document.docfile.url }}">{{ document.docfile.name }}</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
     {% else %}
+
         <p>No documents.</p>
+
     {% endif %}
-    <br><br>
-    <h2>Upload a new file</h2>
-        <!-- Upload form. Note enctype attribute! -->
-        <form action="{% url 'edf_manager' %}" method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            <p>{{ form.non_field_errors }}</p>
-            <p>{{ form.docfile.label_tag }} {{ form.docfile.help_text }}</p>
-            <p>
-                {{ form.docfile.errors }}
-                {{ form.docfile }}
-            </p>
-            <p><input type="submit" value="Upload" /></p>
-        </form>
-    </body>
-</html>
+    <!-- Upload form. -->
+    <form id="upload_form" action="{% url 'edf_manager' %}" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <p>
+            {{ form.docfile.errors }}
+            <label class="btn btn-default btn-lg">
+                Upload a new EDF File <input name="{{ form.docfile.name }}" type="file" onchange="document.querySelector('#upload_form').submit();" class="hidden">
+            </label>
+        </p>
+    </form>
+
+{% endblock %}

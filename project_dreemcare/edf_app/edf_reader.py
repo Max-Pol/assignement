@@ -7,14 +7,12 @@
     I added an "anonymization" method.
 """
 
-
 import re
 import datetime
 import numpy as np
 import sys
 import struct
 import io
-import hashlib
 
 
 class EDFEndOfData:
@@ -58,20 +56,14 @@ class EDFReader:
         self.header = self.read_header()
 
     def anonymization(self):
+
+        # replace the EDF subject_id by *
         f = self.edfFile
-        local_subject_id = self.header['local_subject_id']
-
-        # hash the subject id
-        hash_object = hashlib.sha1(local_subject_id.encode())
-        hex_dig = hash_object.hexdigest()
-
-        # replace the EDF subject id
         f.seek(8)
-        f.write(hex_dig * 2)
-        self.header = self.read_header()  # update header
+        f.write("*" * 80)
 
-        # Note: (hash, subject_id) could be saved if needed:
-        # (hex_dig * 2, local_subject_id)
+        # update header
+        self.header = self.read_header()
 
     def read_header(self):
         """
@@ -259,7 +251,6 @@ class EDFReader:
             return self.data[i]
 
     def get_signal_i_fast(self, i):
-        print(i)
         len_db = sum(self.header['nb_samples_per_record'])
         offset_i = sum(self.header['nb_samples_per_record'][:i])
         nb_sample_per_record_i = self.header['nb_samples_per_record'][i]

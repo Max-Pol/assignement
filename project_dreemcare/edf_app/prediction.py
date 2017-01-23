@@ -1,18 +1,18 @@
 import numpy as np
 import math
-from project_dreemcare.settings import PROJECT_ROOT
 from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
-
-
-# parameters
-look_back = 1
+from django.utils import timezone
+import logging
+from project_dreemcare.settings import PROJECT_ROOT
+from edf_app.models import Document, Prediction
+from edf_app.edf_reader import *
 
 
 def compute_rmse(EEG_data):
     '''
-    This method perform a non-exhaustive cross-validation,s
+    This method perform a non-exhaustive cross-validation,
     evaluating train and test performance by computing
     the Root Mean Square Error.
     '''
@@ -31,6 +31,7 @@ def compute_rmse(EEG_data):
     print("(train, test) = ({}, {})\n".format(len(train), len(test)))
 
     # reshape into X=t and Y=t+1
+    look_back = 1
     trainX, trainY = create_dataset(train, look_back)
     testX, testY = create_dataset(test, look_back)
     # reshape input to be [samples, time steps, features]
@@ -39,7 +40,12 @@ def compute_rmse(EEG_data):
 
     # load model
     path = PROJECT_ROOT + '/media/model/lstm_lookback' + str(look_back) + '.h5'
-    model = load_model(path)
+    try:
+        model = load_model(path)
+    except:
+        msg = 'Error loading predictor in ' + path
+        logging.warning(msg)
+        raise FileNotFoundError(msg)
 
     # make predictions
     trainPredict = model.predict(trainX)
@@ -53,9 +59,7 @@ def compute_rmse(EEG_data):
 
     # calculate root mean squared error
     trainScore = math.sqrt(mean_squared_error(trainY[0], trainPredict[:, 0]))
-    print('Train Score: %.2f RMSE' % (trainScore))
     testScore = math.sqrt(mean_squared_error(testY[0], testPredict[:, 0]))
-    print('Test Score: %.2f RMSE' % (testScore))
 
     return trainScore, testScore
 
@@ -68,3 +72,19 @@ def create_dataset(dataset, look_back=1):
         dataX.append(a)
         dataY.append(dataset[i + look_back, 0])
     return np.array(dataX), np.array(dataY)
+
+
+def update_prediction():
+    docs = Document.objects.all()
+    for doc in docs:
+        # load the dataset
+        edf = EDFReader(PROJECT_ROOT + doc.docfile.url)
+        EEG_data = edf.get_signal(0)
+
+        # make and save new predictions
+        rmse_train, rmse_test = compute_rmse(EEG_data)
+        new_prediction = Prediction(date_time=timezone.now(),
+                                    rmse_train=rmse_train,
+                                    rmse_test=rmse_test)
+        new_prediction.document = doc
+        new_prediction.save()

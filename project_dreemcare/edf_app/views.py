@@ -2,19 +2,11 @@ from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.core.urlresolvers import reverse
 from django.utils import timezone
-from project_dreemcare.settings import PROJECT_ROOT
-
+import logging
 from edf_app.models import Document, Prediction
 from edf_app.forms import DocumentForm
 from edf_app.edf_reader import *
 from edf_app.prediction import *
-
-
-def index(request):
-    return render(
-        request,
-        'edf_app/index.html',
-    )
 
 
 def edf_manager(request):
@@ -22,25 +14,33 @@ def edf_manager(request):
     if request.method == 'POST':
         form = DocumentForm(request.POST, request.FILES)
         if form.is_valid():
+
+            # anonymization of EDF file directly in
+            # django temporary upload folder, before it is stored.
+            tmp_path = request.FILES['docfile'].temporary_file_path()
+            newedf = EDFReader(tmp_path)
+            newedf.anonymization()
+
+            # save doc
             newdoc = Document(docfile=request.FILES['docfile'])
             newdoc.save()
 
-            # anonymization of EDF
-            newedf = EDFReader(PROJECT_ROOT + newdoc.docfile.url)
-            newedf.anonymization()
+            # Load the EEG signal
+            EEG_signal = newedf.get_signal(0)
+            # Truncate dataset to reduce computing time. Can be commented.
+            limiter = min(1000, len(EEG_signal))
+            EEG_signal = EEG_signal[0:limiter]
 
-            # make and save predictions
-            EEG_signal = newedf.get_signal(2)
-            # limit dataset size to reduce computing time. Can be commented.
-            if len(EEG_signal) > 10000:
-                EEG_signal = EEG_signal[0:10000]
-
-            rmse_train, rmse_test = compute_rmse(EEG_signal)
-            new_prediction = Prediction(date_time=timezone.now(),
-                                        rmse_train=rmse_train,
-                                        rmse_test=rmse_test)
-            new_prediction.document = newdoc
-            new_prediction.save()
+            # make and save prediction performances
+            try:
+                rmse_train, rmse_test = compute_rmse(EEG_signal)
+                new_prediction = Prediction(date_time=timezone.now(),
+                                            rmse_train=rmse_train,
+                                            rmse_test=rmse_test)
+                new_prediction.document = newdoc
+                new_prediction.save()
+            except:
+                logging.warning('Predictions failed')
 
             # Redirect to the document list after POST
             return HttpResponseRedirect(reverse('edf_manager'))
@@ -73,7 +73,7 @@ def predictions(request):
                                   [doc_predictions[0].rmse_train,
                                    doc_predictions[0].rmse_test]])
         except:
-            documents_data.append([doc, ["not computed", "not computed"]])
+            documents_data.append([doc, [None, None]])
 
     # Render list page with the documents and the form
     return render(request,
