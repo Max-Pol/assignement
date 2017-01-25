@@ -7,7 +7,7 @@ from django.utils import timezone
 import logging
 from project_dreemcare.settings import PROJECT_ROOT
 from edf_app.models import Document, Prediction
-from edf_app.edf_reader import *
+from edf_app.edf_reader import EDFReader
 
 '''
 We need to use global variable here because otherwise
@@ -19,7 +19,7 @@ related issue on Github, but it seems to be a bug in tensorflow.
 KERAS_MODEL = None
 
 
-def compute_rmse(EEG_data):
+def compute_rmse(EEG_signal, look_back=1):
     '''
     This method perform a non-exhaustive cross-validation,
     evaluating train and test performance by computing
@@ -27,26 +27,11 @@ def compute_rmse(EEG_data):
     '''
     global KERAS_MODEL
 
-    # load the dataset
-    dataset = np.array(EEG_data).astype('float32')
-    dataset = dataset.reshape(dataset.shape[0], 1)
-
-    # normalize the dataset
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    dataset = scaler.fit_transform(dataset)
-
-    # split into train and test sets
-    train_size = int(len(dataset) * 0.67)
-    train, test = dataset[0:train_size, :], dataset[train_size:len(dataset), :]
-    print("(train, test) = ({}, {})\n".format(len(train), len(test)))
-
-    # reshape into X=t and Y=t+1
-    look_back = 1
-    trainX, trainY = create_dataset(train, look_back)
-    testX, testY = create_dataset(test, look_back)
-    # reshape input to be [samples, time steps, features]
-    trainX = trainX.reshape((trainX.shape[0], 1, trainX.shape[1]))
-    testX = testX.reshape((testX.shape[0], 1, testX.shape[1]))
+    # load and format dataset
+    dataset = split_norm_dataset(EEG_signal, look_back)
+    trainX, trainY = dataset['train']
+    testX, testY = dataset['test']
+    scaler = dataset['scaler']
 
     # load model
     path = PROJECT_ROOT + '/media/model/lstm_lookback' + str(look_back) + '.h5'
@@ -56,7 +41,6 @@ def compute_rmse(EEG_data):
         except Exception as e:
             msg = 'Error loading predictor in ' + path + ': ' + str(e)
             logging.warning(msg)
-            raise FileNotFoundError(msg)
 
     # make predictions
     trainPredict = KERAS_MODEL.predict(trainX)
@@ -75,14 +59,44 @@ def compute_rmse(EEG_data):
     return trainScore, testScore
 
 
-# convert an array of values into a dataset matrix
-def create_dataset(dataset, look_back=1):
-    dataX, dataY = [], []
-    for i in range(0, len(dataset) - look_back):
-        a = dataset[i:(i + look_back), 0]
-        dataX.append(a)
-        dataY.append(dataset[i + look_back, 0])
-    return np.array(dataX), np.array(dataY)
+def split_norm_dataset(EEG_signal, look_back):
+
+    # load the dataset
+    dataset = np.array(EEG_signal) \
+                .reshape(len(EEG_signal), 1) \
+                .astype('float32')
+
+    # normalize the dataset
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    dataset = scaler.fit_transform(dataset)
+
+    # split into train and test sets
+    train_size = int(len(dataset) * 0.67)
+    train = dataset[0:train_size, :]
+    test = dataset[train_size:len(dataset), :]
+    print("(train, test) = ({}, {})\n".format(len(train), len(test)))
+
+    def create_dataset(dataset, look_back):
+        # reshape into X=t and Y=t+1
+        dataX, dataY = [], []
+        for i in range(0, len(dataset) - look_back):
+            a = dataset[i:(i + look_back), 0]
+            dataX.append(a)
+            dataY.append(dataset[i + look_back, 0])
+
+        # reshape input to be [samples, time steps, features]
+        dataX = np.array(dataX).reshape((len(dataX), 1, len(dataX[0])))
+        dataY = np.array(dataY)
+        return dataX, dataY
+
+    trainX, trainY = create_dataset(train, look_back)
+    testX, testY = create_dataset(test, look_back)
+
+    return {"dataset": dataset,
+            "train": (trainX, trainY),
+            "test": (testX, testY),
+            "scaler": scaler
+            }
 
 
 def update_prediction():
@@ -99,3 +113,8 @@ def update_prediction():
                                     rmse_test=rmse_test)
         new_prediction.document = doc
         new_prediction.save()
+
+
+def truncate_EEG(EEG_signal):
+    limiter = min(1000, len(EEG_signal))
+    return EEG_signal[0:limiter]

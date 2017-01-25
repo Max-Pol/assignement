@@ -5,8 +5,8 @@ from django.utils import timezone
 import logging
 from edf_app.models import Document, Prediction
 from edf_app.forms import DocumentForm
-from edf_app.edf_reader import *
-from edf_app.prediction import *
+from edf_app.edf_reader import EDFReader
+from edf_app.prediction import compute_rmse, truncate_EEG
 
 
 def edf_manager(request):
@@ -27,9 +27,9 @@ def edf_manager(request):
 
             # Load the EEG signal
             EEG_signal = newedf.get_signal(0)
-            # Truncate dataset to reduce computing time. Can be commented.
-            limiter = min(1000, len(EEG_signal))
-            EEG_signal = EEG_signal[0:limiter]
+
+            # Truncate signal to reduce computing time. Can be commented.
+            EEG_signal = truncate_EEG(EEG_signal)
 
             # make and save prediction performances
             try:
